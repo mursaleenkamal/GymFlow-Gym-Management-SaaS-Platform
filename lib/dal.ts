@@ -1,7 +1,17 @@
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { cacheWrapper } from '@/lib/cache'
 import { computeSubscriptionState } from './subscription-utils'
+
+// Helper to get client with admin privileges if available, else user client
+async function getSupabaseServerClient() {
+  try {
+    return createAdminClient()
+  } catch {
+    return await createClient()
+  }
+}
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 // Uses getSession() (JWT-local, no network) rather than getUser().
@@ -26,7 +36,7 @@ export const getAuthUser = cache(async () => {
 // onboarding_data MUST call deleteCache(cacheKeys.gym(userId)) after the write.
 export const getGym = cache(async (userId: string) => {
   return cacheWrapper(`user:${userId}:gym`, 120, async () => {
-    const supabase = await createClient()
+    const supabase = await getSupabaseServerClient()
     const { data: gym, error } = await supabase
       .from('gyms')
       .select('id, name, onboarding_completed, owner_id, created_at, onboarding_data')
@@ -46,7 +56,7 @@ export const getGym = cache(async (userId: string) => {
 // single render pass (e.g. AppShell + layout both calling it), but it will
 // never serve a cross-request cached result.
 export const getGymSubscription = cache(async (userId: string) => {
-  const supabase = await createClient()
+  const supabase = await getSupabaseServerClient()
   const { data: gym, error } = await supabase
     .from('gyms')
     .select(`
@@ -65,7 +75,7 @@ export const getGymSubscription = cache(async (userId: string) => {
 // email, which caused blocked accounts to retain access until TTL expiry.
 // A single-column select is fast enough to run on every navigation.
 export const getGymIsActive = cache(async (userId: string) => {
-  const supabase = await createClient()
+  const supabase = await getSupabaseServerClient()
   const { data, error } = await supabase
     .from('gyms')
     .select('is_active')

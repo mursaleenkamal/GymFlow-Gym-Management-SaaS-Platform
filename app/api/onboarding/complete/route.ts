@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { checkRateLimit, ROUTE_LIMITS } from '@/lib/rateLimit'
 
 interface MembershipPlan {
@@ -72,15 +73,30 @@ export async function POST(req: NextRequest) {
       completedAt: new Date().toISOString(),
     }
 
-    if (gymId) {
-      const { error: updateError } = await supabase
+    const adminClient = createAdminClient()
+
+    // Determine target gym ID — if not passed, find if user already has a gym record
+    let targetGymId = gymId
+    if (!targetGymId) {
+      const { data: existingGym } = await adminClient
+        .from('gyms')
+        .select('id')
+        .eq('owner_id', user.id)
+        .maybeSingle()
+      if (existingGym?.id) {
+        targetGymId = existingGym.id
+      }
+    }
+
+    if (targetGymId) {
+      const { error: updateError } = await adminClient
         .from('gyms')
         .update({
           name: gymName.trim(),
           onboarding_completed: true,
           onboarding_data: onboardingData,
         })
-        .eq('id', gymId)
+        .eq('id', targetGymId)
         .eq('owner_id', user.id)
 
       if (updateError) {
@@ -98,8 +114,8 @@ export async function POST(req: NextRequest) {
         const joining_fee_monthly   = (plans as MembershipPlan[]).find(p => p.duration === 'monthly')?.joiningFee   ?? 0
         const joining_fee_quarterly = (plans as MembershipPlan[]).find(p => p.duration === 'quarterly')?.joiningFee ?? 0
         const joining_fee_annual    = (plans as MembershipPlan[]).find(p => p.duration === 'annual')?.joiningFee    ?? 0
-        await supabase.from('gym_plan_prices').upsert(
-          { gym_id: gymId, monthly, quarterly, annual,
+        await adminClient.from('gym_plan_prices').upsert(
+          { gym_id: targetGymId, monthly, quarterly, annual,
             joining_fee_monthly, joining_fee_quarterly, joining_fee_annual,
             updated_at: new Date().toISOString() },
           { onConflict: 'gym_id' }
@@ -112,7 +128,7 @@ export async function POST(req: NextRequest) {
       const trialEndsAt = new Date(now)
       trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_DURATION_DAYS)
 
-      const { data: newGym, error: insertError } = await supabase
+      const { data: newGym, error: insertError } = await adminClient
         .from('gyms')
         .insert({
           name: gymName.trim(),
@@ -142,7 +158,7 @@ export async function POST(req: NextRequest) {
         const joining_fee_monthly   = (plans as MembershipPlan[]).find(p => p.duration === 'monthly')?.joiningFee   ?? 0
         const joining_fee_quarterly = (plans as MembershipPlan[]).find(p => p.duration === 'quarterly')?.joiningFee ?? 0
         const joining_fee_annual    = (plans as MembershipPlan[]).find(p => p.duration === 'annual')?.joiningFee    ?? 0
-        await supabase.from('gym_plan_prices').upsert(
+        await adminClient.from('gym_plan_prices').upsert(
           { gym_id: newGym.id, monthly, quarterly, annual,
             joining_fee_monthly, joining_fee_quarterly, joining_fee_annual },
           { onConflict: 'gym_id' }

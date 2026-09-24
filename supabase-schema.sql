@@ -108,6 +108,10 @@ CREATE INDEX IF NOT EXISTS idx_members_gym_dues ON members(gym_id, pending_amoun
 
 CREATE INDEX IF NOT EXISTS idx_due_payments_gym_id ON due_payments(gym_id);
 
+CREATE POLICY "Users can view their own gym"
+  ON gyms FOR SELECT
+  USING (owner_id = auth.uid());
+
 CREATE POLICY "Users can insert their own gym"
   ON gyms FOR INSERT
   WITH CHECK (owner_id = auth.uid());
