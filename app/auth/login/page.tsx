@@ -118,11 +118,21 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [mounted, setMounted] = useState(false)
+  const [isDev, setIsDev] = useState(false)
   const [showRegBanner, setShowRegBanner] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
     setMounted(true)
+    if (
+      process.env.NODE_ENV === 'development' ||
+      (typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1' ||
+          window.location.hostname.endsWith('.local')))
+    ) {
+      setIsDev(true)
+    }
     const searchParams = new URLSearchParams(window.location.search)
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
 
@@ -331,7 +341,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full h-12 px-4 bg-white border-2 border-slate-200 rounded-xl text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all duration-200"
-                  placeholder="owner@powerfit.com or admin"
+                  placeholder={isDev ? "owner@powerfit.com or admin" : "name@example.com"}
                   required
                 />
               </div>
@@ -379,34 +389,36 @@ export default function LoginPage() {
                 )}
               </button>
 
-              {/* Quick Fill Demo Credentials */}
-              <div className="pt-1">
-                <p className="text-[11px] font-semibold text-slate-400 text-center mb-2">Tap to Auto-Fill Default Credentials (Password: <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-600 font-mono">Password123!</code>)</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('owner@powerfit.com')
-                      setPassword('Password123!')
-                    }}
-                    className="py-2.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 transition-all flex items-center justify-center gap-1.5 border border-slate-200/80 shadow-sm"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>Gym Owner (owner)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('admin@gymflow.sbs')
-                      setPassword('Password123!')
-                    }}
-                    className="py-2.5 px-3 rounded-xl bg-indigo-50/70 hover:bg-indigo-100 text-xs font-semibold text-indigo-700 transition-all flex items-center justify-center gap-1.5 border border-indigo-200/80 shadow-sm"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-indigo-600" />
-                    <span>Super Admin (admin)</span>
-                  </button>
+              {/* Quick Fill Demo Credentials (development only) */}
+              {isDev && (
+                <div className="pt-1">
+                  <p className="text-[11px] font-semibold text-slate-400 text-center mb-2">Tap to Auto-Fill Default Credentials (Password: <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-600 font-mono">Password123!</code>)</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail('owner@powerfit.com')
+                        setPassword('Password123!')
+                      }}
+                      className="py-2.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 transition-all flex items-center justify-center gap-1.5 border border-slate-200/80 shadow-sm"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Gym Owner (owner)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail('admin@gymflow.sbs')
+                        setPassword('Password123!')
+                      }}
+                      className="py-2.5 px-3 rounded-xl bg-indigo-50/70 hover:bg-indigo-100 text-xs font-semibold text-indigo-700 transition-all flex items-center justify-center gap-1.5 border border-indigo-200/80 shadow-sm"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-indigo-600" />
+                      <span>Super Admin (admin)</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </form>
 
             {/* Divider */}
