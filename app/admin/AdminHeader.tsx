@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { ShieldAlert, BarChart3, CreditCard, LayoutDashboard, LogOut } from 'lucide-react'
+import { BarChart3, CreditCard, LayoutDashboard, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import toast from 'react-hot-toast'
 
@@ -68,15 +68,6 @@ export default function AdminHeader({ adminEmail }: { adminEmail: string }) {
                 </Link>
               )
             })}
-            <a
-              href={process.env.NEXT_PUBLIC_ADMIN_URL || 'https://admin.gymflow.sbs'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-300 bg-indigo-950/70 hover:bg-indigo-900/90 border border-indigo-700/50 transition-all ml-1"
-            >
-              <ShieldAlert className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Dedicated Admin App ↗</span>
-            </a>
           </nav>
 
           {/* User badge & Logout */}
