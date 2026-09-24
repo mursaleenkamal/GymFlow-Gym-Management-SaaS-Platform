@@ -124,6 +124,16 @@ export default function LoginPage() {
 
   useEffect(() => {
     setMounted(true)
+
+    // If redirected with recovery or signup token in hash, forward to setup-password
+    if (typeof window !== 'undefined' && window.location.hash.includes('access_token')) {
+      const hash = window.location.hash
+      if (hash.includes('type=recovery') || hash.includes('type=signup')) {
+        router.replace('/auth/setup-password' + hash)
+        return
+      }
+    }
+
     if (
       process.env.NODE_ENV === 'development' ||
       (typeof window !== 'undefined' &&
