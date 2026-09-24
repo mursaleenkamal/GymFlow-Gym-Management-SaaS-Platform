@@ -1,0 +1,27 @@
+node_modules
+.next
+.env
+.env.local
+.env.*.local
+package-lock.json
+geo_normalization.sql
+supabase-geo-intelligence-migrations.sql
+GEO_INTELLIGENCE_MIGRATIONS.sql
+.vscode
+git_command.txt
+add_legacy_member_id.sq
+# .graphifyignore
+node_modules/
+dist/
+*.generated.py
+graphify-out/
+graphify-out
+
+# Removing the block that ignores everything except src/ since this project uses app/ structure
+# Sentry Config File
+.env.sentry-build-plugin
+.vercel
+.local-db/
+cloudflared.exe
+*.exe
+.env*

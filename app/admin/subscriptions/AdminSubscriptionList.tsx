@@ -1,0 +1,387 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import {
+  CheckCircle, XCircle, Clock, ExternalLink, ChevronDown,
+  RefreshCw, FileText, Wifi, WifiOff, Bell,
+} from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import toast from 'react-hot-toast'
+
+interface Request {
+  id: string
+  status: string
+  submitted_at: string
+  reviewed_at?: string | null
+  transaction_id?: string | null
+  notes?: string | null
+  rejection_reason?: string | null
+  uploaded_file_url?: string | null
+  signedUrl?: string | null
+  gyms?: { id: string; name: string; owner_id: string } | null
+}
+
+interface Props {
+  requests: Request[]
+}
+
+const STATUS_BADGE = {
+  pending:  { label: 'Pending',  cls: 'bg-amber-100 text-amber-700',   Icon: Clock },
+  approved: { label: 'Approved', cls: 'bg-emerald-100 text-emerald-700', Icon: CheckCircle },
+  rejected: { label: 'Rejected', cls: 'bg-red-100 text-red-700',        Icon: XCircle },
+}
+
+const PLAN_OPTIONS = [
+  { value: 'monthly',  label: 'Monthly (30 days)' },
+  { value: 'yearly',   label: 'Yearly (365 days)' },
+  { value: 'lifetime', label: 'Lifetime' },
+]
+
+export default function AdminSubscriptionList({ requests: initial }: Props) {
+  const [requests, setRequests] = useState(initial)
+  const [loading, setLoading]   = useState<string | null>(null)
+  const [rejectId, setRejectId] = useState<string | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+  const [planMap, setPlanMap] = useState<Record<string, string>>({})
+  const [isConnected, setIsConnected] = useState(false)
+  const requestsRef = useRef(requests)
+  useEffect(() => { requestsRef.current = requests }, [requests])
+
+  // ── Supabase Realtime: live subscription request updates ──────────────────
+  useEffect(() => {
+    const supabase = createClient()
+
+    const channel = supabase
+      .channel('admin_subscription_requests_realtime')
+      // Listen for NEW subscription requests from gym owners
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'subscription_requests',
+        },
+        async (payload: any) => {
+          const newRow = payload.new
+          // Skip if we already have this request (e.g. from optimistic UI)
+          if (requestsRef.current.some(r => r.id === newRow.id)) return
+
+          // Fetch the gym name for display
+          const { data: gym } = await supabase
+            .from('gyms')
+            .select('id, name, owner_id')
+            .eq('id', newRow.gym_id)
+            .single()
+
+          const newRequest: Request = {
+            id: newRow.id,
+            status: newRow.status,
+            submitted_at: newRow.submitted_at ?? newRow.created_at,
+            transaction_id: newRow.transaction_id,
+            notes: newRow.notes,
+            rejection_reason: newRow.rejection_reason,
+            uploaded_file_url: newRow.uploaded_file_url,
+            signedUrl: null, // Admin will need to refresh for signed URL or we could fetch it
+            gyms: gym ?? null,
+          }
+
+          setRequests(prev => [newRequest, ...prev])
+          toast('🔔 New subscription request received!', { duration: 5000 })
+        }
+      )
+      // Listen for UPDATES (e.g. another admin tab approved/rejected)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'subscription_requests',
+        },
+        (payload: any) => {
+          const updated = payload.new
+          setRequests(prev =>
+            prev.map(r => r.id === updated.id
+              ? { ...r, status: updated.status, reviewed_at: updated.reviewed_at, rejection_reason: updated.rejection_reason }
+              : r
+            )
+          )
+        }
+      )
+      .subscribe((status: string) => {
+        setIsConnected(status === 'SUBSCRIBED')
+      })
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
+  const adminPassword = typeof window !== 'undefined'
+    ? (window as any).__ADMIN_PASSWORD ?? ''
+    : ''
+
+  async function approve(id: string) {
+    const plan = planMap[id] ?? 'monthly'
+    setLoading(id)
+    try {
+      const res = await fetch(`/api/admin/subscription-requests/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve', plan_type: plan }),
+      })
+      if (res.ok) {
+        setRequests(prev =>
+          prev.map(r => r.id === id ? { ...r, status: 'approved' } : r)
+        )
+        toast.success('Subscription approved successfully!')
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toast.error(data.error || 'Failed to approve subscription request.')
+      }
+    } catch {
+      toast.error('Network error. Please try again.')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function reject(id: string) {
+    setLoading(id)
+    try {
+      const res = await fetch(`/api/admin/subscription-requests/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject', rejection_reason: rejectReason }),
+      })
+      if (res.ok) {
+        setRequests(prev =>
+          prev.map(r => r.id === id ? { ...r, status: 'rejected', rejection_reason: rejectReason } : r)
+        )
+        setRejectId(null)
+        setRejectReason('')
+        toast.success('Subscription request rejected.')
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toast.error(data.error || 'Failed to reject subscription request.')
+      }
+    } catch {
+      toast.error('Network error. Please try again.')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  const pending  = requests.filter(r => r.status === 'pending')
+  const reviewed = requests.filter(r => r.status !== 'pending')
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Subscription Requests</h1>
+          <p className="text-sm text-gray-500 mt-1">Review and approve / reject gym payment proofs.</p>
+        </div>
+        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${isConnected ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+          {isConnected ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
+          {isConnected ? 'Live' : 'Connecting...'}
+        </div>
+      </div>
+
+      {/* Pending */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">
+          Pending ({pending.length})
+        </h2>
+        {pending.length === 0 && (
+          <div className="bg-white rounded-xl border border-gray-100 px-6 py-10 text-center text-gray-400 text-sm">
+            No pending requests 🎉
+          </div>
+        )}
+        {pending.map(req => (
+          <RequestCard
+            key={req.id}
+            req={req}
+            loading={loading}
+            rejectId={rejectId}
+            rejectReason={rejectReason}
+            planMap={planMap}
+            onPlanChange={(id, plan) => setPlanMap(p => ({ ...p, [id]: plan }))}
+            onApprove={approve}
+            onStartReject={id => { setRejectId(id); setRejectReason('') }}
+            onCancelReject={() => setRejectId(null)}
+            onRejectReasonChange={setRejectReason}
+            onConfirmReject={reject}
+          />
+        ))}
+      </section>
+
+      {/* Reviewed */}
+      {reviewed.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">
+            Reviewed ({reviewed.length})
+          </h2>
+          {reviewed.map(req => (
+            <RequestCard
+              key={req.id}
+              req={req}
+              loading={loading}
+              rejectId={rejectId}
+              rejectReason={rejectReason}
+              planMap={planMap}
+              onPlanChange={() => {}}
+              onApprove={approve}
+              onStartReject={id => { setRejectId(id); setRejectReason('') }}
+              onCancelReject={() => setRejectId(null)}
+              onRejectReasonChange={setRejectReason}
+              onConfirmReject={reject}
+            />
+          ))}
+        </section>
+      )}
+    </div>
+  )
+}
+
+function RequestCard({
+  req, loading, rejectId, rejectReason, planMap,
+  onPlanChange, onApprove, onStartReject, onCancelReject,
+  onRejectReasonChange, onConfirmReject,
+}: {
+  req: Request
+  loading: string | null
+  rejectId: string | null
+  rejectReason: string
+  planMap: Record<string, string>
+  onPlanChange: (id: string, plan: string) => void
+  onApprove: (id: string) => void
+  onStartReject: (id: string) => void
+  onCancelReject: () => void
+  onRejectReasonChange: (v: string) => void
+  onConfirmReject: (id: string) => void
+}) {
+  const badge = STATUS_BADGE[req.status as keyof typeof STATUS_BADGE] ?? STATUS_BADGE.pending
+  const isThisLoading = loading === req.id
+  const isRejecting = rejectId === req.id
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 flex flex-wrap items-start gap-3">
+        {/* Gym info */}
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-gray-900 truncate">{req.gyms?.name ?? 'Unknown Gym'}</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Submitted {(() => {
+              const d = req.submitted_at ? new Date(req.submitted_at) : null
+              return d && !isNaN(d.getTime())
+                ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                : 'Recently'
+            })()}
+          </p>
+          {req.transaction_id && (
+            <p className="text-xs text-gray-500 mt-1">Txn: <span className="font-mono font-semibold">{req.transaction_id}</span></p>
+          )}
+          {req.notes && (
+            <p className="text-xs text-gray-500 mt-1 italic">"{req.notes}"</p>
+          )}
+          {req.rejection_reason && (
+            <p className="text-xs text-red-600 mt-1">Reason: {req.rejection_reason}</p>
+          )}
+        </div>
+
+        {/* Status badge */}
+        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${badge.cls}`}>
+          <badge.Icon className="w-3.5 h-3.5" />
+          {badge.label}
+        </div>
+      </div>
+
+      {/* Actions */}
+      {req.status === 'pending' && (
+        <div className="px-5 pb-4 space-y-3">
+          {/* View proof */}
+          {req.signedUrl && (
+            <a
+              href={req.signedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-brand-600 font-semibold hover:underline"
+            >
+              <FileText className="w-3.5 h-3.5" /> View Payment Proof
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+
+          {/* Plan selector + approve */}
+          {!isRejecting && (
+            <div className="flex items-center gap-2">
+              <select
+                value={planMap[req.id] ?? 'monthly'}
+                onChange={e => onPlanChange(req.id, e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 flex-1 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400"
+              >
+                {PLAN_OPTIONS.map(p => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => onApprove(req.id)}
+                disabled={isThisLoading}
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50"
+              >
+                {isThisLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                Approve
+              </button>
+              <button
+                onClick={() => onStartReject(req.id)}
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-sm font-bold rounded-lg border border-red-200 transition-colors"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                Reject
+              </button>
+            </div>
+          )}
+
+          {/* Rejection form */}
+          {isRejecting && (
+            <div className="space-y-2 bg-red-50 border border-red-200 rounded-xl p-3">
+              <p className="text-xs font-bold text-red-700">Rejection reason (optional)</p>
+              <textarea
+                value={rejectReason}
+                onChange={e => onRejectReasonChange(e.target.value)}
+                rows={2}
+                className="w-full text-sm border border-red-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
+                placeholder="e.g. Screenshot unclear, wrong amount..."
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onConfirmReject(req.id)}
+                  disabled={isThisLoading}
+                  className="flex items-center gap-1.5 px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isThisLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                  Confirm Reject
+                </button>
+                <button
+                  onClick={onCancelReject}
+                  className="px-4 py-1.5 text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Reviewed at */}
+      {req.reviewed_at && (
+        <div className="px-5 pb-3">
+          <p className="text-xs text-gray-400">
+            Reviewed {new Date(req.reviewed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}

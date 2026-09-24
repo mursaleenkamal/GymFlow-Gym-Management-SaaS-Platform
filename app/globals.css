@@ -1,0 +1,167 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html, body {
+    scroll-behavior: smooth;
+    /* Prevent horizontal overflow on small screens */
+    overflow-x: hidden;
+  }
+
+  body {
+    @apply bg-white;
+    /* Minimum safe width — prevents layout breaking below 320px */
+    min-width: 320px;
+  }
+
+  /* Custom subtle scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply flex items-center justify-center gap-2 w-full py-3 px-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white font-semibold rounded-xl shadow-sm shadow-brand-200 hover:from-brand-600 hover:to-brand-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm;
+  }
+
+  .btn-secondary {
+    @apply flex items-center justify-center gap-2 w-full py-3 px-4 bg-white text-slate-700 font-semibold rounded-xl border border-slate-200 shadow-sm hover:bg-slate-50 active:scale-[0.98] transition-all text-sm;
+  }
+
+  .btn-ghost {
+    @apply flex items-center justify-center gap-2 py-2 px-3 text-slate-500 rounded-xl active:bg-slate-100 transition-all text-sm;
+  }
+
+  .input-field {
+    @apply w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent transition-all shadow-sm;
+  }
+
+  .card {
+    @apply bg-white rounded-xl border border-slate-200 shadow-sm;
+  }
+
+  .status-active {
+    @apply bg-emerald-50 text-emerald-700 border border-emerald-200;
+  }
+
+  .status-expiring {
+    @apply bg-amber-50 text-amber-700 border border-amber-200;
+  }
+
+  .status-expired {
+    @apply bg-red-50 text-red-700 border border-red-200;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden bg-slate-100 rounded-lg;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.7) 50%, transparent 100%);
+    animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  @keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  @keyframes bounce-dots {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+    40%           { transform: translateY(-6px); opacity: 1; }
+  }
+  @keyframes progress-bar {
+    0%   { width: 0%; }
+    20%  { width: 25%; }
+    50%  { width: 60%; }
+    80%  { width: 85%; }
+    100% { width: 95%; }
+  }
+  @keyframes fill-bar {
+    from { width: 0%; }
+    to   { width: 100%; }
+  }
+  @keyframes pop-in {
+    0%   { transform: scale(0.8); opacity: 0; }
+    70%  { transform: scale(1.05); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .animate-spin-slow    { animation: spin-slow 1.5s linear infinite; }
+  .animate-bounce-dot   { animation: bounce-dots 1.2s ease-in-out infinite; }
+  .animate-progress-bar { animation: progress-bar 4s ease-out forwards; }
+  .animate-fill-bar     { animation: fill-bar 0.6s ease-out forwards; }
+  .animate-pop-in       { animation: pop-in 0.4s ease-out forwards; }
+
+  @keyframes lift {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50%      { transform: translateY(-10px) rotate(-10deg); }
+  }
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.8; transform: scale(0.98); }
+  }
+  @keyframes slide-up {
+    from { transform: translateY(20px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+  }
+
+  .animate-lift { animation: lift 2s ease-in-out infinite; }
+  .animate-pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
+  .animate-slide-up { animation: slide-up 0.5s ease-out forwards; }
+
+  .glass {
+    @apply bg-white/80 backdrop-blur-md border border-white/20;
+  }
+
+  @keyframes float-star {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50%      { transform: translateY(-8px) rotate(15deg); }
+  }
+
+  /* Safe area bottom padding for devices with home indicators */
+  .pb-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Responsive table cell — hides on small screens but shows on larger */
+  .td-responsive {
+    @apply hidden md:table-cell;
+  }
+
+  /* Touch-friendly minimum tap target */
+  .tap-target {
+    @apply min-w-[44px] min-h-[44px];
+  }
+
+  /* Container helpers for xxl screens */
+  .content-xxl {
+    @apply max-w-7xl mx-auto 3xl:max-w-8xl;
+  }
+}
